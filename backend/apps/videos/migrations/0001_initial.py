@@ -1,0 +1,195 @@
+import uuid
+
+import django.contrib.postgres.indexes
+import django.contrib.postgres.search
+import django.db.models.deletion
+import pgvector.django
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+    initial = True
+
+    dependencies = []
+
+    operations = [
+        pgvector.django.VectorExtension(),
+        migrations.CreateModel(
+            name="Video",
+            fields=[
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ("youtube_video_id", models.CharField(max_length=32, unique=True)),
+                ("source_url", models.URLField()),
+                ("canonical_url", models.URLField()),
+                ("title", models.CharField(max_length=500)),
+                ("description", models.TextField(blank=True)),
+                ("channel_id", models.CharField(blank=True, max_length=128, null=True)),
+                ("channel_title", models.CharField(blank=True, max_length=255, null=True)),
+                ("thumbnail_url", models.URLField(blank=True, null=True)),
+                ("duration_seconds", models.PositiveIntegerField(blank=True, null=True)),
+                ("published_at", models.DateTimeField(blank=True, null=True)),
+                ("view_count", models.BigIntegerField(blank=True, null=True)),
+                ("like_count", models.BigIntegerField(blank=True, null=True)),
+                ("comment_count", models.BigIntegerField(blank=True, null=True)),
+                ("metadata_json", models.JSONField(blank=True, default=dict)),
+            ],
+        ),
+        migrations.CreateModel(
+            name="IngestBatch",
+            fields=[
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ("input_text", models.TextField()),
+                ("input_type", models.CharField(choices=[("single_url", "Single Url"), ("url_list", "Url List"), ("playlist", "Playlist")], max_length=32)),
+                ("status", models.CharField(choices=[("queued", "Queued"), ("running", "Running"), ("completed", "Completed"), ("partial_failed", "Partial Failed"), ("failed", "Failed")], default="queued", max_length=32)),
+                ("total_count", models.PositiveIntegerField(default=0)),
+                ("completed_count", models.PositiveIntegerField(default=0)),
+                ("failed_count", models.PositiveIntegerField(default=0)),
+                ("error_message", models.TextField(blank=True, null=True)),
+            ],
+        ),
+        migrations.CreateModel(
+            name="Playlist",
+            fields=[
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ("youtube_playlist_id", models.CharField(blank=True, max_length=128, null=True)),
+                ("source_url", models.URLField()),
+                ("title", models.CharField(blank=True, max_length=500, null=True)),
+                ("description", models.TextField(blank=True, null=True)),
+                ("channel_title", models.CharField(blank=True, max_length=255, null=True)),
+                ("metadata_json", models.JSONField(blank=True, default=dict)),
+            ],
+        ),
+        migrations.CreateModel(
+            name="SearchQueryLog",
+            fields=[
+                ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ("query_text", models.TextField()),
+                ("search_type", models.CharField(choices=[("keyword", "Keyword"), ("semantic", "Semantic"), ("hybrid", "Hybrid")], max_length=16)),
+                ("filters_json", models.JSONField(blank=True, default=dict)),
+                ("result_count", models.PositiveIntegerField(default=0)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+        migrations.CreateModel(
+            name="Transcript",
+            fields=[
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ("language_code", models.CharField(default="en", max_length=16)),
+                ("source_type", models.CharField(choices=[("youtube_manual_caption", "Youtube Manual"), ("youtube_auto_caption", "Youtube Auto"), ("yt_dlp_manual_subtitle", "Ytdlp Manual"), ("yt_dlp_auto_subtitle", "Ytdlp Auto"), ("asr_openai", "Asr Openai"), ("asr_local", "Asr Local"), ("manual_upload", "Manual Upload")], max_length=64)),
+                ("raw_text", models.TextField()),
+                ("raw_format", models.CharField(choices=[("vtt", "Vtt"), ("srt", "Srt"), ("json", "Json"), ("plain_text", "Plain Text")], max_length=32)),
+                ("confidence", models.FloatField(blank=True, null=True)),
+                ("video", models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name="transcript", to="videos.video")),
+            ],
+        ),
+        migrations.CreateModel(
+            name="VideoSummary",
+            fields=[
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ("short_summary", models.TextField()),
+                ("detailed_summary", models.TextField(blank=True)),
+                ("key_points", models.JSONField(blank=True, default=list)),
+                ("topics", models.JSONField(blank=True, default=list)),
+                ("important_quotes", models.JSONField(blank=True, default=list)),
+                ("action_items", models.JSONField(blank=True, default=list)),
+                ("controversies", models.JSONField(blank=True, default=list)),
+                ("glossary", models.JSONField(blank=True, default=list)),
+                ("generated_by", models.CharField(blank=True, max_length=128)),
+                ("video", models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name="summary", to="videos.video")),
+            ],
+        ),
+        migrations.CreateModel(
+            name="ViralMomentCandidate",
+            fields=[
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ("start_ms", models.PositiveIntegerField()),
+                ("end_ms", models.PositiveIntegerField()),
+                ("hook", models.TextField()),
+                ("quote", models.TextField()),
+                ("reason", models.TextField()),
+                ("score", models.FloatField()),
+                ("suggested_title", models.TextField(blank=True, null=True)),
+                ("suggested_caption", models.TextField(blank=True, null=True)),
+                ("tags", models.JSONField(blank=True, default=list)),
+                ("video", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="viral_moments", to="videos.video")),
+            ],
+        ),
+        migrations.CreateModel(
+            name="TranscriptSegment",
+            fields=[
+                ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ("start_ms", models.PositiveIntegerField(db_index=True)),
+                ("end_ms", models.PositiveIntegerField(db_index=True)),
+                ("text", models.TextField()),
+                ("segment_index", models.PositiveIntegerField()),
+                ("confidence", models.FloatField(blank=True, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("transcript", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="segments", to="videos.transcript")),
+                ("video", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="transcript_segments", to="videos.video")),
+            ],
+            options={"ordering": ["segment_index"]},
+        ),
+        migrations.CreateModel(
+            name="TranscriptChunk",
+            fields=[
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ("chunk_index", models.PositiveIntegerField()),
+                ("start_ms", models.PositiveIntegerField(db_index=True)),
+                ("end_ms", models.PositiveIntegerField(db_index=True)),
+                ("text", models.TextField()),
+                ("token_count", models.PositiveIntegerField(blank=True, null=True)),
+                ("search_vector", django.contrib.postgres.search.SearchVectorField(blank=True, null=True)),
+                ("embedding", pgvector.django.VectorField(blank=True, dimensions=1536, null=True)),
+                ("metadata_json", models.JSONField(blank=True, default=dict)),
+                ("transcript", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="chunks", to="videos.transcript")),
+                ("video", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="transcript_chunks", to="videos.video")),
+            ],
+        ),
+        migrations.CreateModel(
+            name="PlaylistVideo",
+            fields=[
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("position", models.PositiveIntegerField(blank=True, null=True)),
+                ("playlist", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="playlist_videos", to="videos.playlist")),
+                ("video", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="playlist_videos", to="videos.video")),
+            ],
+        ),
+        migrations.CreateModel(
+            name="IngestJob",
+            fields=[
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ("source_url", models.URLField()),
+                ("status", models.CharField(choices=[("queued", "Queued"), ("resolving", "Resolving"), ("metadata_fetched", "Metadata Fetched"), ("transcript_fetching", "Transcript Fetching"), ("transcribing", "Transcribing"), ("normalizing", "Normalizing"), ("chunking", "Chunking"), ("embedding", "Embedding"), ("summarizing", "Summarizing"), ("indexed", "Indexed"), ("failed", "Failed")], default="queued", max_length=32)),
+                ("current_step", models.CharField(blank=True, max_length=128)),
+                ("error_message", models.TextField(blank=True, null=True)),
+                ("retry_count", models.PositiveIntegerField(default=0)),
+                ("started_at", models.DateTimeField(blank=True, null=True)),
+                ("finished_at", models.DateTimeField(blank=True, null=True)),
+                ("batch", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name="jobs", to="videos.ingestbatch")),
+                ("video", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="ingest_jobs", to="videos.video")),
+            ],
+        ),
+        migrations.AddIndex(model_name="transcriptsegment", index=models.Index(fields=["video", "start_ms"], name="videos_tran_video_i_8703a4_idx")),
+        migrations.AddIndex(model_name="transcriptchunk", index=models.Index(fields=["video", "start_ms"], name="videos_tran_video_i_d293a1_idx")),
+        migrations.AddIndex(model_name="transcriptchunk", index=django.contrib.postgres.indexes.GinIndex(fields=["search_vector"], name="chunk_search_vector_gin")),
+        migrations.AddIndex(model_name="transcriptchunk", index=pgvector.django.HnswIndex(ef_construction=64, fields=["embedding"], m=16, name="chunk_embedding_hnsw", opclasses=["vector_cosine_ops"])),
+        migrations.AddConstraint(model_name="transcriptchunk", constraint=models.UniqueConstraint(fields=("transcript", "chunk_index"), name="unique_transcript_chunk")),
+        migrations.AddIndex(model_name="viralmomentcandidate", index=models.Index(fields=["video", "-score"], name="videos_vira_video_i_475a8c_idx")),
+        migrations.AddConstraint(model_name="playlistvideo", constraint=models.UniqueConstraint(fields=("playlist", "video"), name="unique_playlist_video")),
+    ]
