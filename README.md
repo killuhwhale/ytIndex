@@ -1,6 +1,6 @@
-# VideoRecall
+# ytIndex
 
-VideoRecall is a local full-stack MVP for ingesting permitted YouTube transcripts, normalizing them into timestamped segments, summarizing videos, indexing transcript chunks, searching across indexed content, and suggesting viral-moment timestamps.
+ytIndex is a local full-stack MVP for ingesting permitted YouTube transcripts, normalizing them into timestamped segments, summarizing videos, indexing transcript chunks, searching across indexed content, and suggesting viral-moment timestamps.
 
 The app is intentionally compliance-first: it does not bypass YouTube access controls, DRM, paywalls, authentication, account restrictions, or Terms of Service. The easiest local demo path is to paste a YouTube URL and provide a manual transcript for content you are allowed to process.
 
@@ -184,7 +184,7 @@ With only this flag enabled, the provider is subtitle-only and uses `--skip-down
 
 ## Optional: Fallback to Audio Transcription
 
-If subtitles are unavailable, VideoRecall can use `yt-dlp` to extract audio and send it to OpenAI speech-to-text. This is disabled unless every required gate is enabled.
+If subtitles are unavailable, ytIndex can use `yt-dlp` to extract audio and send it to OpenAI speech-to-text. This is disabled unless every required gate is enabled.
 
 Edit `.env`:
 
