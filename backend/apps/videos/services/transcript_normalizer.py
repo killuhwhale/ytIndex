@@ -69,7 +69,7 @@ def _parse_vtt_or_srt(raw_text: str, skip_headers: bool) -> list[NormalizedSegme
         elif current_time:
             current_lines.append(line)
 
-    return _merge_tiny_segments(_collapse_rolling_captions(segments))
+    return _split_long_segments(_collapse_rolling_captions(segments))
 
 
 def _append_segment(segments: list[NormalizedSegment], time_pair: tuple[int, int], lines: list[str]) -> None:
@@ -122,6 +122,62 @@ def _words_equal(left: list[str], right: list[str]) -> bool:
 
 def _normalize_word(word: str) -> str:
     return re.sub(r"\W+", "", word).lower()
+
+
+def _split_long_segments(segments: list[NormalizedSegment], max_words: int = 34, max_duration_ms: int = 12000) -> list[NormalizedSegment]:
+    output: list[NormalizedSegment] = []
+    for segment in segments:
+        if len(segment.text.split()) <= max_words and segment.end_ms - segment.start_ms <= max_duration_ms:
+            output.append(NormalizedSegment(segment.start_ms, segment.end_ms, segment.text, len(output), segment.confidence))
+            continue
+        output.extend(_split_segment(segment, len(output), _target_words_for_segment(segment, max_words, max_duration_ms)))
+    return [NormalizedSegment(item.start_ms, item.end_ms, item.text, index, item.confidence) for index, item in enumerate(output)]
+
+
+def _split_segment(segment: NormalizedSegment, start_index: int, max_words: int) -> list[NormalizedSegment]:
+    parts = [part.strip() for part in re.split(r"(?<=[.!?])\s+", segment.text) if part.strip()]
+    if len(parts) <= 1:
+        words = segment.text.split()
+        parts = [" ".join(words[index : index + max_words]) for index in range(0, len(words), max_words)]
+
+    groups: list[str] = []
+    current: list[str] = []
+    for part in parts:
+        current_words = sum(len(item.split()) for item in current)
+        part_words = len(part.split())
+        if current and current_words + part_words > max_words:
+            groups.append(" ".join(current))
+            current = []
+        current.append(part)
+    if current:
+        groups.append(" ".join(current))
+
+    total_words = max(1, sum(len(group.split()) for group in groups))
+    duration = max(1, segment.end_ms - segment.start_ms)
+    elapsed_words = 0
+    split_segments = []
+    for offset, group in enumerate(groups):
+        words = max(1, len(group.split()))
+        start_ms = segment.start_ms + int(duration * elapsed_words / total_words)
+        elapsed_words += words
+        end_ms = segment.start_ms + int(duration * elapsed_words / total_words)
+        split_segments.append(
+            NormalizedSegment(
+                start_ms=start_ms,
+                end_ms=max(start_ms + 1, end_ms),
+                text=group,
+                segment_index=start_index + offset,
+                confidence=segment.confidence,
+            )
+        )
+    return split_segments
+
+
+def _target_words_for_segment(segment: NormalizedSegment, max_words: int, max_duration_ms: int) -> int:
+    duration = max(1, segment.end_ms - segment.start_ms)
+    target_parts = max(1, (duration + max_duration_ms - 1) // max_duration_ms)
+    total_words = max(1, len(segment.text.split()))
+    return max(8, min(max_words, (total_words + target_parts - 1) // target_parts))
 
 
 def _merge_tiny_segments(segments: list[NormalizedSegment]) -> list[NormalizedSegment]:

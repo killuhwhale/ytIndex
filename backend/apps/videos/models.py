@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.db import models
@@ -18,7 +19,8 @@ class TimeStampedModel(models.Model):
 
 class Video(TimeStampedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    youtube_video_id = models.CharField(max_length=32, unique=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="videos", blank=True, null=True)
+    youtube_video_id = models.CharField(max_length=32)
     source_url = models.URLField()
     canonical_url = models.URLField()
     title = models.CharField(max_length=500)
@@ -36,9 +38,13 @@ class Video(TimeStampedModel):
     def __str__(self) -> str:
         return self.title or self.youtube_video_id
 
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["owner", "youtube_video_id"], name="unique_owner_youtube_video")]
+
 
 class Playlist(TimeStampedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="playlists", blank=True, null=True)
     youtube_playlist_id = models.CharField(max_length=128, blank=True, null=True)
     source_url = models.URLField()
     title = models.CharField(max_length=500, blank=True, null=True)
@@ -70,6 +76,7 @@ class IngestBatch(TimeStampedModel):
         FAILED = "failed"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ingest_batches", blank=True, null=True)
     input_text = models.TextField()
     input_type = models.CharField(max_length=32, choices=InputType.choices)
     status = models.CharField(max_length=32, choices=Status.choices, default=Status.QUEUED)
@@ -94,6 +101,7 @@ class IngestJob(TimeStampedModel):
         FAILED = "failed"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ingest_jobs", blank=True, null=True)
     batch = models.ForeignKey(IngestBatch, on_delete=models.CASCADE, related_name="jobs", blank=True, null=True)
     video = models.ForeignKey(Video, on_delete=models.SET_NULL, related_name="ingest_jobs", blank=True, null=True)
     source_url = models.URLField()
@@ -206,6 +214,7 @@ class SearchQueryLog(models.Model):
         HYBRID = "hybrid"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="search_logs", blank=True, null=True)
     query_text = models.TextField()
     search_type = models.CharField(max_length=16, choices=SearchType.choices)
     filters_json = models.JSONField(default=dict, blank=True)

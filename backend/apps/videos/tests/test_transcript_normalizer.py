@@ -57,3 +57,15 @@ Runescape community begin to sound the alarm.
     assert len(segments) == 1
     assert segments[0].start_ms == 1000
     assert segments[0].end_ms == 8000
+
+
+def test_normalize_splits_long_segments_for_readability():
+    raw = """WEBVTT
+
+00:00:01.000 --> 00:00:41.000
+This is the first long thought with enough words to force splitting. This is the second long thought with enough words to split. This is the third long thought with enough words to split.
+"""
+    segments = normalize_transcript(raw, "vtt")
+    assert len(segments) > 1
+    assert segments[0].start_ms == 1000
+    assert segments[-1].end_ms == 41000

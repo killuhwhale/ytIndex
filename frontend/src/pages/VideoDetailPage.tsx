@@ -32,9 +32,17 @@ export function VideoDetailPage() {
         ))}
       </div>
       {tab === "summary" ? (
-        <section className="border bg-white p-4">
-          <p>{item.summary?.short_summary || "No summary yet."}</p>
-          <ul className="mt-4 list-disc pl-5">{item.summary?.key_points?.map((point) => <li key={point}>{point}</li>)}</ul>
+        <section className="space-y-5 border bg-white p-4">
+          <div>
+            <h2 className="mb-2 text-lg font-semibold">Summary</h2>
+            <p className="whitespace-pre-line text-sm leading-6">{item.summary?.detailed_summary || item.summary?.short_summary || "No summary yet."}</p>
+          </div>
+          {item.summary?.key_points?.length ? (
+            <div>
+              <h3 className="mb-2 font-medium">Key points</h3>
+              <ul className="list-disc space-y-1 pl-5 text-sm">{item.summary.key_points.map((point) => <li key={point}>{point}</li>)}</ul>
+            </div>
+          ) : null}
         </section>
       ) : null}
       {tab === "transcript" ? (

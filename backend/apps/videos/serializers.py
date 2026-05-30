@@ -1,9 +1,84 @@
 from __future__ import annotations
 
+from django.conf import settings
+from django.contrib.auth import authenticate, get_user_model, password_validation
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 
 from .models import IngestBatch, IngestJob, TranscriptSegment, Video, VideoSummary, ViralMomentCandidate
 from .services.youtube_url_parser import youtube_timestamp_url
+
+
+User = get_user_model()
+
+
+class CurrentUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "email", "username", "first_name", "last_name"]
+
+
+class RegisterSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_email(self, value: str) -> str:
+        email = value.lower()
+        if email not in settings.AUTH_ALLOWED_EMAILS:
+            raise serializers.ValidationError("This email is not approved for access.")
+        if User.objects.filter(email__iexact=email).exists() or User.objects.filter(username__iexact=email).exists():
+            raise serializers.ValidationError("An account already exists for this email.")
+        return email
+
+    def validate_password(self, value: str) -> str:
+        password_validation.validate_password(value)
+        return value
+
+    def create(self, validated_data):
+        email = validated_data["email"]
+        return User.objects.create_user(username=email, email=email, password=validated_data["password"])
+
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        email = attrs["email"].lower()
+        user = authenticate(username=email, password=attrs["password"])
+        if user is None:
+            raise serializers.ValidationError("Unable to log in with those credentials.")
+        if not user.is_active:
+            raise serializers.ValidationError("This account is disabled.")
+        attrs["user"] = user
+        return attrs
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_password(self, value: str) -> str:
+        password_validation.validate_password(value)
+        return value
+
+    def validate(self, attrs):
+        try:
+            user_id = force_str(urlsafe_base64_decode(attrs["uid"]))
+            user = User.objects.get(pk=user_id)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            raise serializers.ValidationError("The password reset link is invalid.")
+        if not default_token_generator.check_token(user, attrs["token"]):
+            raise serializers.ValidationError("The password reset link is invalid or expired.")
+        attrs["user"] = user
+        return attrs
 
 
 class IngestJobSerializer(serializers.ModelSerializer):

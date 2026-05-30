@@ -34,8 +34,8 @@ make dev
 Then open:
 
 - Frontend: http://localhost:5173
-- Backend API: http://localhost:8000/api
-- Django admin: http://localhost:8000/admin
+- Backend API: http://localhost:8001/api
+- Django admin: http://localhost:8001/admin
 
 `make dev` stays running and streams logs for the backend, Celery worker, frontend, Postgres, and Redis.
 
@@ -85,13 +85,25 @@ make dev
 
 2. Open http://localhost:5173.
 
-3. Paste a YouTube URL in the first text box:
+3. Create an account using an email in `AUTH_ALLOWED_EMAILS`.
+
+The default `.env.example` allow-list includes:
+
+```env
+AUTH_ALLOWED_EMAILS=andayac@gmail.com
+```
+
+For production password reset emails, configure `EMAIL_BACKEND` and SMTP settings. The default development email backend prints reset links to backend logs.
+
+Videos, ingest batches, transcript search results, summaries, and viral moments are private to the account that created them. Existing ownerless rows created before auth or by management commands are not shown in the web UI.
+
+4. Paste a YouTube URL in the first text box:
 
 ```text
 https://www.youtube.com/watch?v=dQw4w9WgXcQ
 ```
 
-4. Paste a manual transcript in the second text box:
+5. Paste a manual transcript in the second text box:
 
 ```text
 Most people think the hard part is starting, but the truth is consistency wins.
@@ -100,19 +112,19 @@ I learned that small repeatable systems beat huge one-time efforts.
 This is a concise teaching moment that can become a strong short clip.
 ```
 
-5. Click `Start ingest`.
+6. Click `Start ingest`.
 
-6. The app redirects to the batch page. Wait for the job to reach `indexed`.
+7. The app redirects to the batch page. Wait for the job to reach `indexed`.
 
-7. Open the indexed video from the batch table.
+8. Open the indexed video from the batch table.
 
-8. Use the tabs:
+9. Use the tabs:
 
 - `summary`: view the generated local fallback summary.
 - `transcript`: view timestamped segments and open YouTube timestamp links.
 - `viral`: click `Generate moments` to create candidate short-form moments.
 
-9. Open `Search` from the top nav and search:
+10. Open `Search` from the top nav and search:
 
 ```text
 consistency
@@ -241,7 +253,7 @@ The backend expands the playlist into one ingest job per video.
 Create an ingest batch with a manual transcript:
 
 ```bash
-curl -X POST http://localhost:8000/api/ingest/ \
+curl -X POST http://localhost:8001/api/ingest/ \
   -H "Content-Type: application/json" \
   -d '{
     "input": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
@@ -252,7 +264,7 @@ curl -X POST http://localhost:8000/api/ingest/ \
 Search:
 
 ```bash
-curl -X POST http://localhost:8000/api/search/ \
+curl -X POST http://localhost:8001/api/search/ \
   -H "Content-Type: application/json" \
   -d '{
     "query": "consistency",
@@ -265,7 +277,7 @@ curl -X POST http://localhost:8000/api/search/ \
 Generate viral moments:
 
 ```bash
-curl -X POST http://localhost:8000/api/videos/VIDEO_UUID/viral-moments/
+curl -X POST http://localhost:8001/api/videos/VIDEO_UUID/viral-moments/
 ```
 
 ## Project Layout
@@ -300,7 +312,7 @@ If ingest fails with `No transcript provider could handle this video`, use the m
 
 If playlist ingest fails, set `YOUTUBE_API_KEY`.
 
-If frontend calls fail, confirm the backend is available at http://localhost:8000/api and `FRONTEND_ORIGIN=http://localhost:5173` is set in `.env`.
+If frontend calls fail, confirm the backend is available at http://localhost:8001/api and `CORS_ALLOWED_ORIGINS` includes the frontend origin in `.env`.
 
 ## Known Limitations
 

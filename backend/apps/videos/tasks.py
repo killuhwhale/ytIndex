@@ -22,7 +22,7 @@ from .services.youtube_url_parser import parse_youtube_url
 @app.task
 def ingest_job(job_id: str, context: dict | None = None) -> None:
     context = context or {}
-    job = IngestJob.objects.select_related("batch").get(id=job_id)
+    job = IngestJob.objects.select_related("batch", "owner").get(id=job_id)
     job.started_at = timezone.now()
     _set_status(job, IngestJob.Status.RESOLVING, "Parsing YouTube URL")
 
@@ -32,6 +32,7 @@ def ingest_job(job_id: str, context: dict | None = None) -> None:
             raise ValueError("Playlist expansion is represented at batch creation; job URLs must be videos.")
         metadata = fetch_video_metadata(parsed, job.source_url)
         video, _ = Video.objects.update_or_create(
+            owner=job.owner,
             youtube_video_id=metadata.youtube_video_id,
             defaults={
                 "source_url": metadata.source_url,
@@ -89,7 +90,7 @@ def ingest_job(job_id: str, context: dict | None = None) -> None:
 
         _set_status(job, IngestJob.Status.CHUNKING, "Chunking transcript")
         segment_rows = list(TranscriptSegment.objects.filter(video=video).order_by("segment_index"))
-        chunk_data = chunk_segments(segment_rows, min_tokens=80, max_tokens=900, overlap_tokens=80)
+        chunk_data = chunk_segments(segment_rows, min_tokens=350, max_tokens=850, overlap_tokens=90)
         TranscriptChunk.objects.filter(video=video).delete()
         chunks = TranscriptChunk.objects.bulk_create(
             [
